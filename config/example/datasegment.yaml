@@ -1,0 +1,5 @@
+template_path: templates/datasegment.yaml
+hooks:
+  before_delete:
+    - !s3_empty_bucket datasegment::BucketName
+    - !s3_delete_bucket datasegment::BucketName

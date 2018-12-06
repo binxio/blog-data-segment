@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: blog-datasegment
+
+Parameters:
+  DataSegmentName:
+    Type: String
+    Default: example-datasegment
+
+Resources:
+  DataSegmentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: sts:AssumeRole
+            Condition: {}
+      Path: /
+      Policies:
+        - PolicyName: Allow
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - kms:*
+                  - kinesis:*
+                  - logs:*
+                  - lambda:*
+                Resource:
+                  - '*'
+
+  DataSegmentBucket:
+    Type: AWS::S3::Bucket
+
+  Deliverystream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub ${DataSegmentName}-firehose
+      DeliveryStreamType: KinesisStreamAsSource
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt KinesisStream.Arn
+        RoleARN: !GetAtt DataSegmentRole.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt DataSegmentBucket.Arn
+        RoleARN: !GetAtt DataSegmentRole.Arn
+        Prefix: ''
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Sub ${DataSegmentName}-s3-firehose
+          LogStreamName: !Sub ${DataSegmentName}-s3-firehose
+        CompressionFormat: UNCOMPRESSED
+
+  KinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub ${DataSegmentName}-stream
+      ShardCount: 1
+
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${DataSegmentName}-s3-firehose
+      RetentionInDays: 30
+  CloudWatchLogStream:
+    Type: AWS::Logs::LogStream
+    DependsOn:
+      - CloudWatchLogGroup
+    Properties:
+      LogGroupName: !Sub ${DataSegmentName}-s3-firehose
+      LogStreamName: !Sub ${DataSegmentName}-s3-firehose
+
+Outputs:
+  KinesisStreamName:
+    Description: The name of the KinesisStream
+    Value: !Ref KinesisStream
+  KinesisStreamArn:
+    Description: The ARN of the KinesisStream
+    Value: !GetAtt KinesisStream.Arn
+  DeliveryStreamName:
+    Description: The name of the Deliverystream
+    Value: !Ref Deliverystream
+  DeliveryStreamArn:
+    Description: The arn of the Deliverystream
+    Value: !GetAtt Deliverystream.Arn
+  BucketName:
+    Description: THe name of the DataSegmentBucket
+    Value: !Ref DataSegmentBucket
